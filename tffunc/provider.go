@@ -1,16 +1,23 @@
 package tffunc
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/apparentlymart/go-tf-func-provider/internal/tfplugin6"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
+	"go.rpcplugin.org/rpcplugin"
+	"google.golang.org/grpc"
+
+	"github.com/apparentlymart/go-tf-func-provider/internal/tfplugin6"
 )
 
+// Provider represents a functions-only provider for Terraform, or other
+// software that can act as a client for Terraform's plugin protocol.
 type Provider struct {
 	funcs   map[string]providerFunction
 	schemas map[string]*tfplugin6.Function
+	metas   []*tfplugin6.GetMetadata_FunctionMetadata
 }
 
 type providerFunction struct {
@@ -19,6 +26,11 @@ type providerFunction struct {
 	varParamType cty.Type
 }
 
+// NewProvider constructs a new [Provider] that initially supports no functions
+// at all.
+//
+// Use [Provider.AddFunction] calls to register one or more functions before
+// calling [Provider.Serve] to start the plugin server.
 func NewProvider() *Provider {
 	return &Provider{
 		funcs:   make(map[string]providerFunction),
@@ -53,6 +65,9 @@ func (p *Provider) AddFunction(name string, spec *function.Spec) {
 	fn := buildFunction(spec)
 	p.funcs[name] = fn
 	p.schemas[name] = schema
+	p.metas = append(p.metas, &tfplugin6.GetMetadata_FunctionMetadata{
+		Name: name,
+	})
 }
 
 // Serve attempts to start a plugin server after negotiating with the parent
@@ -62,8 +77,21 @@ func (p *Provider) AddFunction(name string, spec *function.Spec) {
 //
 // Returns errors if the server cannot start for any dynamic reason, such as
 // if the protocol negotiation fails.
-func (p *Provider) Serve() error {
-	panic("not yet implemented")
+func (p *Provider) Serve(ctx context.Context) error {
+	return rpcplugin.Serve(ctx, &rpcplugin.ServerConfig{
+		Handshake: rpcplugin.HandshakeConfig{
+			CookieKey:   "TF_PLUGIN_MAGIC_COOKIE",
+			CookieValue: "d602bf8f470bc67ca7faa0386276bbdd4330efaf76d1a219cb4d6991ca9872b2",
+		},
+		ProtoVersions: map[int]rpcplugin.ServerVersion{
+			6: rpcplugin.ServerVersionFunc(func(s *grpc.Server) error {
+				tfplugin6.RegisterProviderServer(s, &pluginServer6{
+					p: p,
+				})
+				return nil
+			}),
+		},
+	})
 }
 
 // CallStub returns a Go function pointer that wraps the function of the given
