@@ -1,3 +1,19 @@
+NOTE: This codebase includes (in internal/tfplugin6) a copy of the protocol
+buffers schema for the Terraform plugin protocol, which is not covered by
+the following license, and is owned by HashiCorp. The Go package in that
+directory is generated mechancially from the protocol buffers schema using
+the protocol buffers compiler and associated gRPC plugin mentioned in the
+generated comments.
+
+The following license applies only to the other code in this package, which
+is an original work implementing a client for the protocol. The author
+interprets the use of the schema as fair use on the same grounds as
+the United States Supreme Court decision on April 5, 2021 regarding the
+use of the Java API specification in Android, but the author is not a
+lawyer and this is not legal advice.
+
+-----------------------------------------------------------------------------
+
 MIT License
 
 Copyright (c) 2024 Martin Atkins
